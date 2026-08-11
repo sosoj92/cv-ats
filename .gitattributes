@@ -1,0 +1,13 @@
+# Normalise les fins de ligne : stockées en LF dans le dépôt, quelle que soit
+# la plateforme. Fige le comportement pour éviter les avertissements CRLF/LF
+# sous Windows et les faux diffs entre machines.
+* text=auto eol=lf
+
+# Fichiers binaires : jamais de conversion de fins de ligne.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
