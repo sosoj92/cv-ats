@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import AtsGuide from "./AtsGuide";
 import ScanReport from "./ScanReport";
 import type { ScanResult } from "@/lib/scanPrompt";
@@ -12,10 +12,13 @@ export default function Home() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false); // optimisation
   const [scanLoading, setScanLoading] = useState(false); // scan
+  const [importing, setImporting] = useState(false); // import de fichier
+  const [notice, setNotice] = useState(""); // message de confirmation d'import
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const busy = loading || scanLoading;
+  const busy = loading || scanLoading || importing;
   // Optimiser exige le CV ET l'annonce ; Scanner n'exige que le CV.
   const canOptimize = cv.trim().length > 0 && annonce.trim().length > 0 && !busy;
   const canScan = cv.trim().length > 0 && !busy;
@@ -77,6 +80,40 @@ export default function Home() {
     }
   }
 
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // On réinitialise l'input tout de suite pour pouvoir réimporter le même
+    // fichier deux fois de suite (sinon onChange ne se redéclenche pas).
+    e.target.value = "";
+    if (!file) return;
+
+    setImporting(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/extract", { method: "POST", body: form });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data?.error ?? "Import impossible.");
+        return;
+      }
+
+      // On remplit la zone CV : l'utilisateur peut relire/corriger ensuite.
+      setCv(data.text ?? "");
+      setNotice(
+        `Texte importé depuis « ${file.name} ». Relis-le et corrige si besoin avant d'optimiser ou scanner.`
+      );
+    } catch {
+      setError("Impossible de contacter le serveur pour l'import. Réessaie.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleCopy() {
     if (!result) return;
     try {
@@ -102,14 +139,32 @@ export default function Home() {
 
       <section className="grid">
         <div className="field">
-          <label htmlFor="cv">Ton CV</label>
+          <div className="cv-label-row">
+            <label htmlFor="cv">Ton CV</label>
+            <button
+              type="button"
+              className="import-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy}
+            >
+              {importing ? "Import en cours…" : "Importer un fichier"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={handleImport}
+              hidden
+            />
+          </div>
           <textarea
             id="cv"
             value={cv}
             onChange={(e) => setCv(e.target.value)}
-            placeholder="Colle ici le texte de ton CV actuel…"
+            placeholder="Colle ici le texte de ton CV, ou importe un .pdf / .docx…"
             rows={16}
           />
+          {notice && <p className="notice">{notice}</p>}
         </div>
 
         <div className="field">

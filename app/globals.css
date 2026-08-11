@@ -65,6 +65,38 @@ body {
   font-size: 0.95rem;
 }
 
+/* Ligne d'en-tête du champ CV : label à gauche, bouton d'import à droite. */
+.cv-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.import-btn {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 0.3rem 0.8rem;
+  font-size: 0.82rem;
+}
+
+.import-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.import-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Message de confirmation d'import (sous la zone CV). */
+.notice {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #86efac;
+}
+
 textarea {
   width: 100%;
   resize: vertical;
