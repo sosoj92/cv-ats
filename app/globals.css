@@ -194,6 +194,12 @@ button.secondary:hover {
   justify-content: space-between;
 }
 
+.result-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.85rem;
+}
+
 /* ---- Diagnostic de scan ATS ---- */
 .scan-report {
   margin-top: 2rem;

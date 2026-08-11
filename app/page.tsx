@@ -13,6 +13,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false); // optimisation
   const [scanLoading, setScanLoading] = useState(false); // scan
   const [importing, setImporting] = useState(false); // import de fichier
+  const [downloading, setDownloading] = useState(false); // export .docx
   const [notice, setNotice] = useState(""); // message de confirmation d'import
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -125,6 +126,40 @@ export default function Home() {
     }
   }
 
+  async function handleDownloadDocx() {
+    if (!result) return;
+    setDownloading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: result }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? "Le téléchargement a échoué.");
+        return;
+      }
+
+      // On récupère le fichier binaire et on déclenche le téléchargement.
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "cv-optimise.docx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Impossible de générer le fichier. Réessaie.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <main className="container">
       <header className="header">
@@ -204,6 +239,15 @@ export default function Home() {
             </button>
           </div>
           <textarea id="result" value={result} readOnly rows={22} />
+          <div className="result-actions">
+            <button
+              onClick={handleDownloadDocx}
+              disabled={!result || downloading}
+              className="primary"
+            >
+              {downloading ? "Génération…" : "Télécharger en .docx"}
+            </button>
+          </div>
         </section>
       )}
 
