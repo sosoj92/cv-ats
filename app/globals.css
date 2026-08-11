@@ -87,7 +87,24 @@ textarea:focus {
 .actions {
   display: flex;
   justify-content: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
   margin: 1.75rem 0 0;
+}
+
+.label-hint {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.85em;
+}
+
+/* Second bouton d'action (Scanner) : même taille, teinte plus sobre. */
+button.primary.secondary-action {
+  background: #0ea5e9;
+}
+
+button.primary.secondary-action:hover:not(:disabled) {
+  background: #0284c7;
 }
 
 button {
@@ -143,6 +160,135 @@ button.secondary:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* ---- Diagnostic de scan ATS ---- */
+.scan-report {
+  margin-top: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--panel);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.scan-score {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.1rem 1.35rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+}
+
+.scan-score-number {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.scan-score-max {
+  font-size: 1.1rem;
+  font-weight: 500;
+  opacity: 0.7;
+  margin-left: 0.15rem;
+}
+
+.scan-score-label {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* Couleurs du score selon le niveau : rouge / orange / vert. */
+.scan-score--low {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #fca5a5;
+}
+.scan-score--mid {
+  background: rgba(251, 146, 60, 0.12);
+  border-color: rgba(251, 146, 60, 0.4);
+  color: #fdba74;
+}
+.scan-score--high {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.4);
+  color: #86efac;
+}
+
+.scan-block-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.scan-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  list-style: disc;
+  line-height: 1.6;
+}
+
+.scan-list li {
+  margin-bottom: 0.4rem;
+}
+
+/* Liste des problèmes : puce remplacée par un badge de gravité. */
+.scan-list--problems {
+  list-style: none;
+  padding-left: 0;
+}
+
+.scan-list--problems li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.scan-badge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  margin-top: 0.1rem;
+}
+
+.scan-badge--high {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+.scan-badge--mid {
+  background: rgba(251, 146, 60, 0.18);
+  color: #fdba74;
+}
+.scan-badge--low {
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5e1;
+}
+
+.scan-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.scan-chip {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.5rem;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  color: #c7d2fe;
 }
 
 /* ---- Section pédagogique (guide ATS) ---- */

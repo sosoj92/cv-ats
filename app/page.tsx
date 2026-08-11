@@ -2,21 +2,29 @@
 
 import { useState } from "react";
 import AtsGuide from "./AtsGuide";
+import ScanReport from "./ScanReport";
+import type { ScanResult } from "@/lib/scanPrompt";
 
 export default function Home() {
   const [cv, setCv] = useState("");
   const [annonce, setAnnonce] = useState("");
   const [result, setResult] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [loading, setLoading] = useState(false); // optimisation
+  const [scanLoading, setScanLoading] = useState(false); // scan
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const canSubmit = cv.trim().length > 0 && annonce.trim().length > 0 && !loading;
+  const busy = loading || scanLoading;
+  // Optimiser exige le CV ET l'annonce ; Scanner n'exige que le CV.
+  const canOptimize = cv.trim().length > 0 && annonce.trim().length > 0 && !busy;
+  const canScan = cv.trim().length > 0 && !busy;
 
   async function handleOptimize() {
     setLoading(true);
     setError("");
     setResult("");
+    setScanResult(null);
     setCopied(false);
 
     try {
@@ -41,6 +49,34 @@ export default function Home() {
     }
   }
 
+  async function handleScan() {
+    setScanLoading(true);
+    setError("");
+    setScanResult(null);
+    setResult("");
+
+    try {
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv, annonce }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data?.error ?? "Une erreur est survenue.");
+        return;
+      }
+
+      setScanResult(data.result ?? null);
+    } catch {
+      setError("Impossible de contacter le serveur. Réessaie.");
+    } finally {
+      setScanLoading(false);
+    }
+  }
+
   async function handleCopy() {
     if (!result) return;
     try {
@@ -57,8 +93,10 @@ export default function Home() {
       <header className="header">
         <h1>CV-ATS</h1>
         <p className="subtitle">
-          Colle ton CV et l&apos;annonce visée, obtiens une version optimisée pour
-          les filtres ATS. Aucune donnée n&apos;est stockée.
+          Colle ton CV et l&apos;annonce visée. <strong>Optimiser</strong> réécrit
+          ton CV en version ATS ; <strong>Scanner</strong> diagnostique sa
+          compatibilité (l&apos;annonce est alors optionnelle). Aucune donnée
+          n&apos;est stockée.
         </p>
       </header>
 
@@ -75,7 +113,10 @@ export default function Home() {
         </div>
 
         <div className="field">
-          <label htmlFor="annonce">L&apos;annonce d&apos;emploi</label>
+          <label htmlFor="annonce">
+            L&apos;annonce d&apos;emploi{" "}
+            <span className="label-hint">(optionnelle pour le scan)</span>
+          </label>
           <textarea
             id="annonce"
             value={annonce}
@@ -87,12 +128,17 @@ export default function Home() {
       </section>
 
       <div className="actions">
-        <button onClick={handleOptimize} disabled={!canSubmit} className="primary">
+        <button onClick={handleOptimize} disabled={!canOptimize} className="primary">
           {loading ? "Optimisation en cours…" : "Optimiser"}
+        </button>
+        <button onClick={handleScan} disabled={!canScan} className="primary secondary-action">
+          {scanLoading ? "Scan en cours…" : "Scanner mon CV"}
         </button>
       </div>
 
       {error && <div className="error">{error}</div>}
+
+      {scanResult && <ScanReport data={scanResult} />}
 
       {result && (
         <section className="field result-block">
