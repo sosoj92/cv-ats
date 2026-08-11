@@ -63,7 +63,7 @@ RÈGLES :
 
 1. HONNÊTETÉ. Base-toi uniquement sur le contenu réel du CV. Ne suppose jamais qu'un candidat possède une compétence qui n'apparaît pas. Pour les mots-clés manquants, ne liste QUE ceux réellement importants dans l'annonce ET réellement absents du CV.
 
-2. MOTS-CLÉS MANQUANTS. Renseigne "motsClesManquants" uniquement si une annonce est fournie. Sans annonce, renvoie une liste vide [].
+2. MOTS-CLÉS MANQUANTS. Renseigne "motsClesManquants" uniquement si une annonce est fournie. Sans annonce, renvoie une liste vide []. Avant de déclarer un mot-clé « manquant », vérifie s'il n'est pas déjà présent dans le CV sous un autre nom : un même outil, une même techno ou un même savoir-faire est souvent désigné différemment (ex. « Meta Ads » = « Facebook Advertising », « réseaux sociaux » = « social media management », « conduite de projet » = « gestion de projet »). Si la compétence figure réellement dans le CV sous une autre formulation, NE la liste PAS comme manquante. À l'inverse, ne considère jamais une compétence comme acquise si elle n'est pas réellement présente dans le CV : en cas de doute réel, considère-la comme absente. Ne liste donc comme manquant QUE ce qui est véritablement absent, quelle que soit la formulation.
 
 3. SCORE. "score" est un entier de 0 à 100 reflétant la compatibilité ATS globale (format + structure + lisibilité + présence des mots-clés si annonce). Sois réaliste : un CV texte propre avec bonnes sections mais sans annonce se situe plutôt haut ; un CV avec problèmes de structure descend.
 
