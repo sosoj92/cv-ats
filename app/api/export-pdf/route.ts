@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildCvPdf, type PdfStyle } from "@/lib/pdfTemplates";
 import { normalizeCvContent } from "@/lib/prompt";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 // La génération PDF nécessite le runtime Node.js.
 export const runtime = "nodejs";
@@ -9,6 +10,10 @@ export const dynamic = "force-dynamic";
 const STYLES: PdfStyle[] = ["moderne", "finance", "minimal"];
 
 export async function POST(request: Request) {
+  // 0. Limite de débit (génération de document).
+  const limited = enforceRateLimit(request, "export-pdf", 30, 60_000);
+  if (limited) return limited;
+
   // 1. Récupération du CV structuré + du style demandé.
   let content: unknown;
   let style: PdfStyle = "moderne";

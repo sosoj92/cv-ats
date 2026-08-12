@@ -7,11 +7,14 @@ import {
   buildScanUserPrompt,
   type ScanResult,
 } from "@/lib/scanPrompt";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 // Runtime Node.js (le SDK Anthropic n'est pas fait pour l'edge).
 export const runtime = "nodejs";
 // Pas de cache : chaque scan est unique.
 export const dynamic = "force-dynamic";
+// L'appel au modèle peut être long : on autorise jusqu'à 60 s (Vercel).
+export const maxDuration = 60;
 
 /**
  * Extrait un objet JSON d'une réponse texte. Le prompt demande du JSON pur,
@@ -71,6 +74,10 @@ function normalize(data: unknown): ScanResult {
 }
 
 export async function POST(request: Request) {
+  // 0. Limite de débit : protège la clé API contre les abus.
+  const limited = enforceRateLimit(request, "scan", 10, 60_000);
+  if (limited) return limited;
+
   // 1. Clé API depuis la variable d'environnement.
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

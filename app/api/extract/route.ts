@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 // Le SDK d'extraction (mammoth / unpdf) nécessite le runtime Node.js.
 export const runtime = "nodejs";
@@ -34,6 +35,10 @@ async function extractPdf(buffer: Buffer): Promise<string> {
 }
 
 export async function POST(request: Request) {
+  // 0. Limite de débit (extraction de fichier).
+  const limited = enforceRateLimit(request, "extract", 30, 60_000);
+  if (limited) return limited;
+
   // 1. Récupération du fichier depuis le FormData.
   let file: File | null = null;
   try {

@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { buildCvDocx } from "@/lib/buildDocx";
 import { normalizeCvContent } from "@/lib/prompt";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 // La génération docx nécessite le runtime Node.js.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  // 0. Limite de débit (génération de document).
+  const limited = enforceRateLimit(request, "export", 30, 60_000);
+  if (limited) return limited;
+
   // 1. Récupération du CV structuré à exporter.
   let content: unknown;
   try {

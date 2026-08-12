@@ -8,13 +8,20 @@ import {
   normalizeCvContent,
 } from "@/lib/prompt";
 import { parseLenientJson } from "@/lib/lenientJson";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 // On force le runtime Node.js (le SDK Anthropic n'est pas fait pour l'edge).
 export const runtime = "nodejs";
 // Pas de cache : chaque optimisation est unique.
 export const dynamic = "force-dynamic";
+// L'appel au modèle peut être long : on autorise jusqu'à 60 s (Vercel).
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  // 0. Limite de débit : protège la clé API contre les abus.
+  const limited = enforceRateLimit(request, "optimize", 10, 60_000);
+  if (limited) return limited;
+
   // 1. Clé API depuis la variable d'environnement (jamais en dur dans le code).
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
