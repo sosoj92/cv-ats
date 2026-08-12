@@ -6,6 +6,14 @@ import ScanReport from "./ScanReport";
 import type { ScanResult } from "@/lib/scanPrompt";
 import { cvContentToText, type CvContent } from "@/lib/prompt";
 
+// Styles de template PDF disponibles.
+type PdfStyle = "moderne" | "finance" | "minimal";
+const PDF_STYLES: { id: PdfStyle; label: string; hint: string }[] = [
+  { id: "moderne", label: "Moderne sobre", hint: "Sans-serif, touche bleu marine" },
+  { id: "finance", label: "Finance classique", hint: "Serif, nom centré, filets N&B" },
+  { id: "minimal", label: "Minimal aéré", hint: "Sans-serif, beaucoup de blanc" },
+];
+
 export default function Home() {
   const [cv, setCv] = useState("");
   const [annonce, setAnnonce] = useState("");
@@ -16,6 +24,7 @@ export default function Home() {
   const [importing, setImporting] = useState(false); // import de fichier
   const [downloading, setDownloading] = useState(false); // export .docx
   const [downloadingPdf, setDownloadingPdf] = useState(false); // export .pdf
+  const [pdfStyle, setPdfStyle] = useState<PdfStyle>("moderne");
   const [notice, setNotice] = useState(""); // message de confirmation d'import
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -148,6 +157,7 @@ export default function Home() {
         return;
       }
 
+      // On récupère le fichier binaire et on déclenche le téléchargement.
       const blob = await res.blob();
       triggerDownload(blob, "cv-optimise.docx");
     } catch {
@@ -165,7 +175,7 @@ export default function Home() {
       const res = await fetch("/api/export-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: result }),
+        body: JSON.stringify({ content: result, style: pdfStyle }),
       });
 
       if (!res.ok) {
@@ -175,7 +185,7 @@ export default function Home() {
       }
 
       const blob = await res.blob();
-      triggerDownload(blob, "cv-optimise.pdf");
+      triggerDownload(blob, `cv-optimise-${pdfStyle}.pdf`);
     } catch {
       setError("Impossible de générer le PDF. Réessaie.");
     } finally {
@@ -274,6 +284,32 @@ export default function Home() {
             </button>
           </div>
           <textarea id="result" value={resultText} readOnly rows={22} />
+
+          {/* Sélecteur de style de template PDF */}
+          <fieldset className="pdf-styles">
+            <legend>Style du PDF</legend>
+            <div className="pdf-styles-options">
+              {PDF_STYLES.map((s) => (
+                <label
+                  key={s.id}
+                  className={`pdf-style-option${
+                    pdfStyle === s.id ? " is-selected" : ""
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="pdfStyle"
+                    value={s.id}
+                    checked={pdfStyle === s.id}
+                    onChange={() => setPdfStyle(s.id)}
+                  />
+                  <span className="pdf-style-label">{s.label}</span>
+                  <span className="pdf-style-hint">{s.hint}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
           <div className="result-actions">
             <button
               onClick={handleDownloadDocx}
@@ -287,7 +323,7 @@ export default function Home() {
               disabled={!result || downloadingPdf}
               className="primary"
             >
-              {downloadingPdf ? "Génération…" : "Télécharger en PDF"}
+              {downloadingPdf ? "Génération…" : "Télécharger ce style (PDF)"}
             </button>
           </div>
         </section>
