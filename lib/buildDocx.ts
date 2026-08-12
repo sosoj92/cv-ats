@@ -3,11 +3,12 @@
  *  CONSTRUCTION DU .DOCX  —  export ATS-friendly du CV optimisé
  * ============================================================================
  *
- * Convertit le texte optimisé (qui peut contenir un peu de Markdown léger :
- * titres avec #, puces avec -, **gras**) en un document Word PROPRE :
+ * Construit un document Word PROPRE directement à partir du CV structuré
+ * (CvContent). Comme on part de données structurées (et non de Markdown), il
+ * n'y a par construction AUCUN caractère de balisage résiduel.
+ *
  *   - vrai texte sélectionnable, police standard (Calibri)
- *   - titres de sections en gras, puces normales, gras réel
- *   - AUCUN caractère Markdown résiduel (ni astérisques, ni ---)
+ *   - nom / titres de sections en gras, puces normales, gras réel
  *   - aucune image, aucun tableau, aucune colonne, aucune zone de texte
  *
  * Tout se fait en mémoire ; rien n'est écrit sur disque.
@@ -21,165 +22,129 @@ import {
   TextRun,
   type ISectionOptions,
 } from "docx";
+import type { CvContent } from "./prompt";
 
 const FONT = "Calibri";
-const SIZE_BODY = 22; // demi-points → 11 pt
-const SIZE_H1 = 30; // 15 pt (nom / titre principal)
-const SIZE_H2 = 26; // 13 pt (titres de section)
+const SIZE_BODY = 22; // 11 pt
+const SIZE_NAME = 32; // 16 pt (nom)
+const SIZE_TITLE = 26; // 13 pt (titre visé)
+const SIZE_SECTION = 26; // 13 pt (titres de section)
 
-/**
- * Nettoie un segment de texte de tout caractère Markdown résiduel :
- * astérisques, underscores d'emphase, dièses, accents graves, tildes.
- * Garantit qu'aucun symbole de balisage ne reste visible dans le document.
- * NB : on ne rogne PAS les espaces de début/fin — ils séparent souvent un
- * segment normal d'un segment en gras/italique (« avec **React** »).
- */
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/[*_`~]/g, "") // emphase / code résiduels
-    .replace(/^#+\s*/, "") // dièses en début de segment
-    .replace(/ {2,}/g, " "); // espaces multiples → un seul
+/** Paragraphe de titre de section (gras, espacé). */
+function sectionHeading(text: string): Paragraph {
+  return new Paragraph({
+    spacing: { before: 240, after: 80 },
+    children: [
+      new TextRun({ text, bold: true, font: FONT, size: SIZE_SECTION }),
+    ],
+  });
 }
 
-/**
- * Transforme une ligne en une suite de TextRun, en interprétant le gras
- * (**texte** ou __texte__) et l'italique (*texte* ou _texte_) comme du VRAI
- * formatage Word. Le reste est nettoyé de tout Markdown.
- */
-function inlineRuns(line: string, size: number, forceBold = false): TextRun[] {
-  const runs: TextRun[] = [];
-  // Capture, dans l'ordre : **gras**, __gras__, *ital*, _ital_.
-  const re = /(\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\n]+)\*|_([^_\n]+)_)/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-
-  const push = (raw: string, bold: boolean, italics: boolean) => {
-    const text = stripMarkdown(raw);
-    if (text.length === 0) return;
-    runs.push(
-      new TextRun({ text, bold: bold || forceBold, italics, font: FONT, size })
-    );
-  };
-
-  while ((m = re.exec(line)) !== null) {
-    if (m.index > last) push(line.slice(last, m.index), false, false);
-    if (m[2] !== undefined || m[3] !== undefined) {
-      push(m[2] ?? m[3] ?? "", true, false); // gras
-    } else {
-      push(m[4] ?? m[5] ?? "", false, true); // italique
-    }
-    last = re.lastIndex;
-  }
-  if (last < line.length) push(line.slice(last), false, false);
-
-  // Ligne devenue vide après nettoyage → un run vide pour garder la ligne.
-  if (runs.length === 0) {
-    runs.push(new TextRun({ text: "", font: FONT, size }));
-  }
-  return runs;
+/** Paragraphe simple. */
+function body(text: string, opts: { bold?: boolean; size?: number } = {}): Paragraph {
+  return new Paragraph({
+    spacing: { after: 80 },
+    children: [
+      new TextRun({
+        text,
+        bold: opts.bold ?? false,
+        font: FONT,
+        size: opts.size ?? SIZE_BODY,
+      }),
+    ],
+  });
 }
 
-/** Détecte une ligne de séparation Markdown (---, ***, ___) à ignorer. */
-function isHorizontalRule(line: string): boolean {
-  return /^\s*([-*_])\1{2,}\s*$/.test(line);
+/** Puce standard. */
+function bullet(text: string): Paragraph {
+  return new Paragraph({
+    bullet: { level: 0 },
+    spacing: { after: 40 },
+    children: [new TextRun({ text, font: FONT, size: SIZE_BODY })],
+  });
 }
 
-/** Détecte une puce : « - », « * » ou « • » en début de ligne. */
-function bulletContent(line: string): string | null {
-  const m = line.match(/^\s*[-*•]\s+(.*)$/);
-  return m ? m[1] : null;
-}
-
-/** Détecte un titre Markdown « # … » → renvoie {level, texte}. */
-function headingByHash(line: string): { level: number; text: string } | null {
-  const m = line.match(/^\s*(#{1,6})\s+(.*)$/);
-  return m ? { level: m[1].length, text: m[2] } : null;
-}
-
-/** Détecte une ligne entièrement en gras (**Titre**) → titre de section. */
-function headingByBold(line: string): string | null {
-  const m = line.trim().match(/^\*\*(.+)\*\*$/);
-  return m ? m[1] : null;
-}
-
-/**
- * Construit le document Word à partir du texte optimisé et renvoie le buffer.
- */
-export async function buildCvDocx(rawText: string): Promise<Buffer> {
-  const lines = rawText.replace(/\r\n/g, "\n").split("\n");
+export async function buildCvDocx(cv: CvContent): Promise<Buffer> {
   const paragraphs: Paragraph[] = [];
 
-  lines.forEach((rawLine) => {
-    const line = rawLine.replace(/\s+$/, "");
+  // --- En-tête : nom, titre, coordonnées ---
+  if (cv.nom.trim()) paragraphs.push(body(cv.nom.trim(), { bold: true, size: SIZE_NAME }));
+  if (cv.titre.trim()) paragraphs.push(body(cv.titre.trim(), { size: SIZE_TITLE }));
 
-    // Ligne vide → petit espacement.
-    if (line.trim() === "") {
-      paragraphs.push(new Paragraph({ children: [new TextRun("")] }));
-      return;
-    }
+  const contact = [
+    cv.contact.ville,
+    cv.contact.telephone,
+    cv.contact.email,
+    cv.contact.portfolio,
+  ]
+    .map((v) => v.trim())
+    .filter(Boolean);
+  if (contact.length) paragraphs.push(body(contact.join("  ·  ")));
 
-    // Séparateur horizontal → ignoré (pas d'astérisques ni de --- dans le doc).
-    if (isHorizontalRule(line)) return;
+  // --- Profil ---
+  if (cv.profil.trim()) {
+    paragraphs.push(sectionHeading("Profil"));
+    paragraphs.push(body(cv.profil.trim()));
+  }
 
-    // Titre « # … »
-    const hHash = headingByHash(line);
-    if (hHash) {
-      const size = hHash.level <= 1 ? SIZE_H1 : SIZE_H2;
-      paragraphs.push(
-        new Paragraph({
-          spacing: { before: 240, after: 80 },
-          children: inlineRuns(hHash.text, size, true),
-        })
-      );
-      return;
-    }
+  // --- Expérience professionnelle ---
+  const exps = cv.experiences.filter(
+    (e) => e.poste.trim() || e.entreprise.trim() || e.puces.some((p) => p.trim())
+  );
+  if (exps.length) {
+    paragraphs.push(sectionHeading("Expérience professionnelle"));
+    exps.forEach((e) => {
+      const entete = [e.poste.trim(), e.entreprise.trim()].filter(Boolean).join(" — ");
+      const dates = e.dates.trim();
+      // Ligne poste/entreprise en gras, dates en normal à la suite.
+      const runs: TextRun[] = [];
+      if (entete) runs.push(new TextRun({ text: entete, bold: true, font: FONT, size: SIZE_BODY }));
+      if (dates) {
+        runs.push(
+          new TextRun({
+            text: entete ? `  (${dates})` : dates,
+            font: FONT,
+            size: SIZE_BODY,
+          })
+        );
+      }
+      if (runs.length) paragraphs.push(new Paragraph({ spacing: { before: 80, after: 40 }, children: runs }));
+      e.puces
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .forEach((p) => paragraphs.push(bullet(p)));
+    });
+  }
 
-    // Ligne entièrement en **gras** → titre de section.
-    const hBold = headingByBold(line);
-    if (hBold) {
-      paragraphs.push(
-        new Paragraph({
-          spacing: { before: 240, after: 80 },
-          children: inlineRuns(hBold, SIZE_H2, true),
-        })
-      );
-      return;
-    }
+  // --- Compétences ---
+  const comps = cv.competences.map((c) => c.trim()).filter(Boolean);
+  if (comps.length) {
+    paragraphs.push(sectionHeading("Compétences"));
+    comps.forEach((c) => paragraphs.push(bullet(c)));
+  }
 
-    // Puce
-    const bullet = bulletContent(line);
-    if (bullet !== null) {
-      paragraphs.push(
-        new Paragraph({
-          bullet: { level: 0 },
-          spacing: { after: 40 },
-          children: inlineRuns(bullet, SIZE_BODY),
-        })
-      );
-      return;
-    }
+  // --- Formation ---
+  const forms = cv.formation.filter(
+    (f) => f.intitule.trim() || f.etablissement.trim() || f.dates.trim()
+  );
+  if (forms.length) {
+    paragraphs.push(sectionHeading("Formation"));
+    forms.forEach((f) => {
+      const entete = [f.intitule.trim(), f.etablissement.trim()].filter(Boolean).join(" — ");
+      const dates = f.dates.trim();
+      paragraphs.push(body(dates ? `${entete} (${dates})` : entete));
+    });
+  }
 
-    // Paragraphe normal
-    paragraphs.push(
-      new Paragraph({
-        spacing: { after: 80 },
-        children: inlineRuns(line, SIZE_BODY),
-      })
-    );
-  });
+  // Filet de sécurité : jamais un document totalement vide.
+  if (paragraphs.length === 0) {
+    paragraphs.push(body(""));
+  }
 
-  const section: ISectionOptions = {
-    properties: {},
-    children: paragraphs,
-  };
+  const section: ISectionOptions = { properties: {}, children: paragraphs };
 
   const doc = new Document({
-    // Police par défaut standard pour tout le document.
-    styles: {
-      default: {
-        document: { run: { font: FONT, size: SIZE_BODY } },
-      },
-    },
+    styles: { default: { document: { run: { font: FONT, size: SIZE_BODY } } } },
     sections: [section],
   });
 

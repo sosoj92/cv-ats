@@ -1,30 +1,32 @@
 import { NextResponse } from "next/server";
 import { buildCvDocx } from "@/lib/buildDocx";
+import { normalizeCvContent } from "@/lib/prompt";
 
 // La génération docx nécessite le runtime Node.js.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  // 1. Récupération du texte optimisé.
-  let text: string;
+  // 1. Récupération du CV structuré à exporter.
+  let content: unknown;
   try {
     const body = await request.json();
-    text = typeof body?.text === "string" ? body.text : "";
+    content = body?.content;
   } catch {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
-  if (!text.trim()) {
+  if (!content || typeof content !== "object") {
     return NextResponse.json(
-      { error: "Aucun texte à exporter." },
+      { error: "Aucun CV à exporter." },
       { status: 400 }
     );
   }
 
   // 2. Génération du .docx en mémoire. Rien n'est écrit sur disque ni loggé.
+  //    On normalise d'abord pour garantir une forme valide et propre.
   try {
-    const buffer = await buildCvDocx(text);
+    const buffer = await buildCvDocx(normalizeCvContent(content));
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

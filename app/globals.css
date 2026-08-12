@@ -194,6 +194,11 @@ button.secondary:hover {
   justify-content: space-between;
 }
 
+.result-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .result-actions {
   display: flex;
   justify-content: flex-end;

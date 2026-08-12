@@ -1,6 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-import { MODEL, MAX_TOKENS, SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompt";
+import {
+  MODEL,
+  MAX_TOKENS,
+  SYSTEM_PROMPT,
+  buildUserPrompt,
+  normalizeCvContent,
+} from "@/lib/prompt";
+import { parseLenientJson } from "@/lib/lenientJson";
 
 // On force le runtime Node.js (le SDK Anthropic n'est pas fait pour l'edge).
 export const runtime = "nodejs";
@@ -48,48 +55,49 @@ export async function POST(request: Request) {
     });
 
     // La réponse est une liste de blocs ; on ne garde que le texte.
-    const result = message.content
+    const text = message.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
       .map((block) => block.text)
       .join("\n")
       .trim();
 
     // Cas particulier : la génération a été coupée par la limite de tokens.
-    // On log les infos de diagnostic (stop_reason, usage) pour comprendre.
+    // Le JSON serait alors incomplet donc inutilisable : on le signale.
     if (message.stop_reason === "max_tokens") {
       console.warn(
         "Optimisation tronquée (max_tokens atteint):",
         JSON.stringify(message.usage)
       );
-      if (!result) {
-        return NextResponse.json(
-          {
-            error:
-              "Le CV est trop long pour être traité en une fois (limite de longueur atteinte avant la moindre sortie). Raccourcis le CV ou l'annonce et réessaie.",
-          },
-          { status: 502 }
-        );
-      }
-      // On a quand même du texte : on le renvoie avec un avertissement.
-      return NextResponse.json({
-        result,
-        warning:
-          "Le résultat a peut-être été tronqué (CV volumineux). Vérifie la fin du CV optimisé.",
-      });
+      return NextResponse.json(
+        {
+          error:
+            "Le CV est trop long pour être traité en une fois (limite de longueur atteinte). Raccourcis le CV ou l'annonce et réessaie.",
+        },
+        { status: 502 }
+      );
     }
 
-    if (!result) {
-      // Diagnostic : on affiche pourquoi la réponse est vide.
+    if (!text) {
       console.error(
         "Réponse vide. stop_reason=",
         message.stop_reason,
-        "blocs=",
-        message.content.map((b) => b.type),
         "usage=",
         JSON.stringify(message.usage)
       );
       return NextResponse.json(
         { error: "Réponse vide du modèle. Réessaie dans un instant." },
+        { status: 502 }
+      );
+    }
+
+    // Parse + validation du JSON structuré (comme le scan).
+    let result;
+    try {
+      result = normalizeCvContent(parseLenientJson(text));
+    } catch {
+      console.error("Optimize : JSON invalide reçu du modèle:", text.slice(0, 500));
+      return NextResponse.json(
+        { error: "Le CV optimisé n'a pas pu être lu (format inattendu). Réessaie." },
         { status: 502 }
       );
     }

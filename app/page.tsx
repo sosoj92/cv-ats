@@ -4,11 +4,12 @@ import { useRef, useState } from "react";
 import AtsGuide from "./AtsGuide";
 import ScanReport from "./ScanReport";
 import type { ScanResult } from "@/lib/scanPrompt";
+import { cvContentToText, type CvContent } from "@/lib/prompt";
 
 export default function Home() {
   const [cv, setCv] = useState("");
   const [annonce, setAnnonce] = useState("");
-  const [result, setResult] = useState("");
+  const [result, setResult] = useState<CvContent | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false); // optimisation
   const [scanLoading, setScanLoading] = useState(false); // scan
@@ -19,6 +20,9 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Rendu texte brut copiable, reconstruit proprement depuis le JSON structuré.
+  const resultText = result ? cvContentToText(result) : "";
+
   const busy = loading || scanLoading || importing;
   // Optimiser exige le CV ET l'annonce ; Scanner n'exige que le CV.
   const canOptimize = cv.trim().length > 0 && annonce.trim().length > 0 && !busy;
@@ -27,7 +31,7 @@ export default function Home() {
   async function handleOptimize() {
     setLoading(true);
     setError("");
-    setResult("");
+    setResult(null);
     setScanResult(null);
     setCopied(false);
 
@@ -45,7 +49,7 @@ export default function Home() {
         return;
       }
 
-      setResult(data.result ?? "");
+      setResult((data.result as CvContent) ?? null);
     } catch {
       setError("Impossible de contacter le serveur. Réessaie.");
     } finally {
@@ -57,7 +61,7 @@ export default function Home() {
     setScanLoading(true);
     setError("");
     setScanResult(null);
-    setResult("");
+    setResult(null);
 
     try {
       const res = await fetch("/api/scan", {
@@ -116,9 +120,9 @@ export default function Home() {
   }
 
   async function handleCopy() {
-    if (!result) return;
+    if (!resultText) return;
     try {
-      await navigator.clipboard.writeText(result);
+      await navigator.clipboard.writeText(resultText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -134,7 +138,7 @@ export default function Home() {
       const res = await fetch("/api/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: result }),
+        body: JSON.stringify({ content: result }),
       });
 
       if (!res.ok) {
@@ -238,7 +242,7 @@ export default function Home() {
               {copied ? "Copié ✓" : "Copier"}
             </button>
           </div>
-          <textarea id="result" value={result} readOnly rows={22} />
+          <textarea id="result" value={resultText} readOnly rows={22} />
           <div className="result-actions">
             <button
               onClick={handleDownloadDocx}
