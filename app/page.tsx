@@ -15,6 +15,7 @@ export default function Home() {
   const [scanLoading, setScanLoading] = useState(false); // scan
   const [importing, setImporting] = useState(false); // import de fichier
   const [downloading, setDownloading] = useState(false); // export .docx
+  const [downloadingPdf, setDownloadingPdf] = useState(false); // export .pdf
   const [notice, setNotice] = useState(""); // message de confirmation d'import
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -147,21 +148,51 @@ export default function Home() {
         return;
       }
 
-      // On récupère le fichier binaire et on déclenche le téléchargement.
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "cv-optimise.docx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      triggerDownload(blob, "cv-optimise.docx");
     } catch {
       setError("Impossible de générer le fichier. Réessaie.");
     } finally {
       setDownloading(false);
     }
+  }
+
+  async function handleDownloadPdf() {
+    if (!result) return;
+    setDownloadingPdf(true);
+    setError("");
+    try {
+      const res = await fetch("/api/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: result }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? "Le téléchargement PDF a échoué.");
+        return;
+      }
+
+      const blob = await res.blob();
+      triggerDownload(blob, "cv-optimise.pdf");
+    } catch {
+      setError("Impossible de générer le PDF. Réessaie.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
+  // Déclenche le téléchargement d'un blob dans le navigateur (rien n'est stocké).
+  function triggerDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -247,9 +278,16 @@ export default function Home() {
             <button
               onClick={handleDownloadDocx}
               disabled={!result || downloading}
-              className="primary"
+              className="primary secondary-action"
             >
               {downloading ? "Génération…" : "Télécharger en .docx"}
+            </button>
+            <button
+              onClick={handleDownloadPdf}
+              disabled={!result || downloadingPdf}
+              className="primary"
+            >
+              {downloadingPdf ? "Génération…" : "Télécharger en PDF"}
             </button>
           </div>
         </section>
