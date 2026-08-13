@@ -39,7 +39,10 @@ export type ScanResult = {
 };
 
 /** Même modèle que pour l'optimisation (cf. lib/prompt.ts). */
-export const MODEL = "claude-sonnet-5";
+export const MODEL = "gemini-2.5-flash";
+
+/** Température basse : diagnostic factuel et stable. */
+export const TEMPERATURE = 0.3;
 
 /** Le diagnostic est compact ; 2000 tokens suffisent largement. */
 export const MAX_TOKENS = 2000;

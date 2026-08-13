@@ -1,38 +1,22 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import {
   MODEL,
   MAX_TOKENS,
+  TEMPERATURE,
   SCAN_SYSTEM_PROMPT,
   buildScanUserPrompt,
   type ScanResult,
 } from "@/lib/scanPrompt";
+import { parseLenientJson } from "@/lib/lenientJson";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { callGemini } from "@/lib/gemini";
 
-// Runtime Node.js (le SDK Anthropic n'est pas fait pour l'edge).
+// Runtime Node.js.
 export const runtime = "nodejs";
 // Pas de cache : chaque scan est unique.
 export const dynamic = "force-dynamic";
 // L'appel au modèle peut être long : on autorise jusqu'à 60 s (Vercel).
 export const maxDuration = 60;
-
-/**
- * Extrait un objet JSON d'une réponse texte. Le prompt demande du JSON pur,
- * mais par sécurité on retire un éventuel bloc ```json ... ``` et on isole
- * le premier objet { ... } trouvé.
- */
-function parseJson(raw: string): unknown {
-  let text = raw.trim();
-  // Retire une clôture Markdown si le modèle en a mis une malgré la consigne.
-  text = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-  // Isole le premier objet JSON complet.
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start !== -1 && end !== -1 && end > start) {
-    text = text.slice(start, end + 1);
-  }
-  return JSON.parse(text);
-}
 
 /**
  * Valide et normalise la sortie du modèle vers la forme ScanResult.
@@ -78,16 +62,7 @@ export async function POST(request: Request) {
   const limited = enforceRateLimit(request, "scan", 10, 60_000);
   if (limited) return limited;
 
-  // 1. Clé API depuis la variable d'environnement.
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Clé API manquante. Définis ANTHROPIC_API_KEY dans .env.local." },
-      { status: 500 }
-    );
-  }
-
-  // 2. Lecture et validation des entrées. L'annonce est optionnelle.
+  // 1. Lecture et validation des entrées. L'annonce est optionnelle.
   let cv: string;
   let annonce: string | undefined;
   try {
@@ -102,56 +77,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Le CV est requis." }, { status: 400 });
   }
 
-  // 3. Appel Anthropic. Aucune donnée n'est stockée.
-  try {
-    const anthropic = new Anthropic({ apiKey });
+  // 2. Appel à Gemini. Aucune donnée n'est stockée.
+  const res = await callGemini({
+    model: MODEL,
+    system: SCAN_SYSTEM_PROMPT,
+    user: buildScanUserPrompt(cv, annonce),
+    maxOutputTokens: MAX_TOKENS,
+    temperature: TEMPERATURE,
+  });
 
-    const message = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: SCAN_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildScanUserPrompt(cv, annonce) }],
-    });
-
-    const text = message.content
-      .filter((block): block is Anthropic.TextBlock => block.type === "text")
-      .map((block) => block.text)
-      .join("\n")
-      .trim();
-
-    if (!text) {
-      console.error(
-        "Scan : réponse vide. stop_reason=",
-        message.stop_reason,
-        "usage=",
-        JSON.stringify(message.usage)
-      );
+  if (!res.ok) {
+    if (res.reason === "no-key") {
       return NextResponse.json(
-        { error: "Réponse vide du modèle. Réessaie dans un instant." },
+        { error: "Clé API manquante. Définis GEMINI_API_KEY dans .env.local." },
+        { status: 500 }
+      );
+    }
+    if (res.reason === "truncated") {
+      return NextResponse.json(
+        { error: "Le CV est trop long pour être analysé en une fois. Raccourcis-le et réessaie." },
         { status: 502 }
       );
     }
-
-    // 4. Parse + validation du JSON structuré.
-    let result: ScanResult;
-    try {
-      result = normalize(parseJson(text));
-    } catch {
-      console.error("Scan : JSON invalide reçu du modèle:", text.slice(0, 500));
-      return NextResponse.json(
-        { error: "Le diagnostic n'a pas pu être lu (format inattendu). Réessaie." },
-        { status: 502 }
-      );
-    }
-
-    return NextResponse.json({ result });
-  } catch (err) {
-    const messageText =
-      err instanceof Error ? err.message : "Erreur inconnue lors de l'appel à l'API.";
-    console.error("Erreur /api/scan:", messageText);
+    console.error("Erreur /api/scan:", res.reason, res.detail ?? "");
     return NextResponse.json(
-      { error: `Échec du scan : ${messageText}` },
+      { error: "Le scan a échoué. Réessaie dans un instant." },
       { status: 502 }
     );
   }
+
+  // 3. Parse + validation du JSON structuré.
+  let result: ScanResult;
+  try {
+    result = normalize(parseLenientJson(res.text));
+  } catch {
+    console.error("Scan : JSON invalide reçu du modèle:", res.text.slice(0, 500));
+    return NextResponse.json(
+      { error: "Le diagnostic n'a pas pu être lu (format inattendu). Réessaie." },
+      { status: 502 }
+    );
+  }
+
+  return NextResponse.json({ result });
 }

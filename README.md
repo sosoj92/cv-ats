@@ -1,6 +1,6 @@
 # CV-ATS
 
-Web app pour réécrire un CV en version optimisée **ATS** (Applicant Tracking System) à partir d'une annonce d'emploi, via l'API Anthropic (Claude).
+Web app pour réécrire un CV en version optimisée **ATS** (Applicant Tracking System) à partir d'une annonce d'emploi, via l'API Google **Gemini** (clé gratuite).
 
 Next.js (App Router) · TypeScript · aucune donnée stockée.
 
@@ -28,11 +28,11 @@ Configure ta clé API :
 cp .env.local.example .env.local
 ```
 
-Puis édite `.env.local` et remplace la valeur par ta vraie clé
-(obtenue sur https://console.anthropic.com/) :
+Puis édite `.env.local` et colle ta vraie clé
+(gratuite, sur https://aistudio.google.com/apikey) :
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=...
 ```
 
 ## Lancer en développement
@@ -48,7 +48,7 @@ Ouvre http://localhost:3000.
 Toute la qualité du résultat vient du fichier **[`lib/prompt.ts`](lib/prompt.ts)**.
 Il est isolé et commenté exprès pour qu'on l'ajuste ensemble :
 
-- `MODEL` — quel modèle Claude appeler.
+- `MODEL` — quel modèle Gemini appeler.
 - `SYSTEM_PROMPT` — les règles permanentes, numérotées pour en discuter une par une.
 - `buildUserPrompt()` — le message construit à chaque requête.
 

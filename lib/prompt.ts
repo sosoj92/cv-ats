@@ -120,12 +120,13 @@ export function normalizeCvContent(data: unknown): CvContent {
 }
 
 /**
- * Modèle Claude utilisé.
- * - claude-sonnet-5 : bon équilibre qualité / vitesse / coût (recommandé).
- * - claude-opus-5   : qualité maximale, plus lent et plus cher.
+ * Modèle Gemini utilisé (Google AI Studio, clé gratuite).
+ * - gemini-2.5-flash      : bon équilibre qualité / vitesse (recommandé).
+ * - gemini-2.5-flash-lite : plus rapide / plus léger.
+ * - gemini-2.5-pro        : qualité maximale (quota gratuit plus serré).
  * Change simplement la valeur ci-dessous pour tester un autre modèle.
  */
-export const MODEL = "claude-sonnet-5";
+export const MODEL = "gemini-2.5-flash";
 
 /**
  * Nombre max de tokens en sortie. Un CV réécrit complet (surtout un profil
@@ -136,10 +137,10 @@ export const MODEL = "claude-sonnet-5";
 export const MAX_TOKENS = 8000;
 
 /**
- * NOTE : les modèles Claude récents (sonnet-5 / opus-5) ne prennent plus le
- * paramètre `temperature` — il est déprécié et provoque une erreur 400. On ne
- * l'envoie donc pas. (Sur d'anciens modèles, on pourrait le réactiver.)
+ * Température : 0 = factuel/déterministe, 1 = créatif. Pour un CV on veut rester
+ * sobre et fidèle → valeur basse. (Gemini accepte ce paramètre.)
  */
+export const TEMPERATURE = 0.3;
 
 /**
  * ----------------------------------------------------------------------------
