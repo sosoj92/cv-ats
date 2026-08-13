@@ -11,7 +11,7 @@
  * (accents) est correctement encodé.
  *
  * Trois styles, une seule colonne chacun, aucun tableau / colonne / image :
- *   - « moderne » : sans-serif, nom à gauche, titres de section bleu marine.
+ *   - « moderne » : sans-serif, nom à gauche, accent bleu marine, filets fins.
  *   - « finance » : serif, nom centré, filets noirs entre sections, N&B.
  *   - « minimal » : sans-serif, très aéré, titres en petites majuscules espacées.
  * ----------------------------------------------------------------------------
@@ -23,54 +23,103 @@ import {
   Text,
   View,
   StyleSheet,
+  Font,
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { CvContent } from "./prompt";
 
+// Désactive la césure automatique (évite les coupures moches type « Canva- »).
+Font.registerHyphenationCallback((word) => [word]);
+
 export type PdfStyle = "moderne" | "finance" | "minimal";
+
+const NAVY = "#1f3a5f";
+const INK = "#1a1a1a";
+const GREY = "#5b6470";
+const HAIRLINE = "#d7dce3";
 
 /** Paramètres visuels propres à chaque style. */
 type Theme = {
   fontFamily: "Helvetica" | "Times-Roman";
   headerAlign: "left" | "center";
-  sectionColor: string;
-  sectionLetterSpacing: number;
-  sectionSize: number;
-  rules: boolean; // filets noirs (header + entre sections)
   pagePadding: number;
   nameSize: number;
+  nameColor: string;
+  titleSize: number;
+  titleColor: string;
+  titleItalic: boolean;
+  headerRule: boolean; // filet sous l'en-tête
+  headerRuleColor: string;
+  sectionColor: string;
+  sectionSize: number;
+  sectionLetterSpacing: number;
+  sectionGap: number; // espace au-dessus de chaque section
+  sectionRuleAbove: boolean; // filet noir entre sections (finance)
+  sectionUnderline: boolean; // fin filet sous le titre (moderne)
+  bodyLineHeight: number;
+  competencesInline: boolean; // compétences en ligne « a · b · c » sinon puces
 };
 
 const THEMES: Record<PdfStyle, Theme> = {
   moderne: {
     fontFamily: "Helvetica",
     headerAlign: "left",
-    sectionColor: "#1f3a5f",
-    sectionLetterSpacing: 1,
-    sectionSize: 11,
-    rules: false,
-    pagePadding: 52,
-    nameSize: 22,
+    pagePadding: 46,
+    nameSize: 24,
+    nameColor: INK,
+    titleSize: 12,
+    titleColor: NAVY,
+    titleItalic: false,
+    headerRule: true,
+    headerRuleColor: NAVY,
+    sectionColor: NAVY,
+    sectionSize: 10.5,
+    sectionLetterSpacing: 1.5,
+    sectionGap: 17,
+    sectionRuleAbove: false,
+    sectionUnderline: true,
+    bodyLineHeight: 1.4,
+    competencesInline: true,
   },
   finance: {
     fontFamily: "Times-Roman",
     headerAlign: "center",
+    pagePadding: 54,
+    nameSize: 25,
+    nameColor: "#000000",
+    titleSize: 12.5,
+    titleColor: "#222222",
+    titleItalic: true,
+    headerRule: true,
+    headerRuleColor: "#000000",
     sectionColor: "#000000",
-    sectionLetterSpacing: 1,
     sectionSize: 12,
-    rules: true,
-    pagePadding: 56,
-    nameSize: 22,
+    sectionLetterSpacing: 1,
+    sectionGap: 15,
+    sectionRuleAbove: true,
+    sectionUnderline: false,
+    bodyLineHeight: 1.45,
+    competencesInline: false,
   },
   minimal: {
     fontFamily: "Helvetica",
     headerAlign: "left",
-    sectionColor: "#333333",
-    sectionLetterSpacing: 3,
+    pagePadding: 62,
+    nameSize: 21,
+    nameColor: INK,
+    titleSize: 11,
+    titleColor: GREY,
+    titleItalic: false,
+    headerRule: false,
+    headerRuleColor: HAIRLINE,
+    sectionColor: "#8a919c",
     sectionSize: 9,
-    rules: false,
-    pagePadding: 72,
-    nameSize: 20,
+    sectionLetterSpacing: 3,
+    sectionGap: 22,
+    sectionRuleAbove: false,
+    sectionUnderline: false,
+    bodyLineHeight: 1.55,
+    competencesInline: true,
   },
 };
 
@@ -80,31 +129,42 @@ function makeStyles(t: Theme) {
     page: {
       fontFamily: t.fontFamily,
       fontSize: 10,
-      lineHeight: 1.4,
-      color: "#111111",
+      lineHeight: t.bodyLineHeight,
+      color: "#1e232b",
       paddingTop: t.pagePadding,
       paddingBottom: t.pagePadding,
       paddingHorizontal: t.pagePadding,
     },
     header: {
       textAlign: t.headerAlign,
-      marginBottom: 6,
-      paddingBottom: t.rules ? 8 : 0,
-      borderBottomWidth: t.rules ? 1 : 0,
-      borderBottomColor: "#000000",
+      paddingBottom: t.headerRule ? 10 : 2,
+      marginBottom: t.headerRule ? 4 : 2,
+      borderBottomWidth: t.headerRule ? (t.fontFamily === "Times-Roman" ? 1 : 1.4) : 0,
+      borderBottomColor: t.headerRuleColor,
     },
     name: {
       fontSize: t.nameSize,
       fontFamily: t.fontFamily,
-      // Gras via la variante Bold de la police intégrée.
       fontWeight: "bold",
+      color: t.nameColor,
+      letterSpacing: t.fontFamily === "Times-Roman" ? 0 : 0.3,
+      // Hauteur de ligne explicite : sinon le titre remonte et chevauche le nom.
+      lineHeight: 1.2,
+      marginBottom: 2,
     },
-    title: { fontSize: 12, marginTop: 3 },
-    contact: { fontSize: 9, color: "#555555", marginTop: 4 },
+    title: {
+      fontSize: t.titleSize,
+      color: t.titleColor,
+      fontStyle: t.titleItalic ? "italic" : "normal",
+      lineHeight: 1.3,
+      marginTop: 2,
+    },
+    contact: { fontSize: 9, color: GREY, marginTop: 5, lineHeight: 1.3 },
+
     section: {
-      marginTop: 16,
-      paddingTop: t.rules ? 8 : 0,
-      borderTopWidth: t.rules ? 1 : 0,
+      marginTop: t.sectionGap,
+      paddingTop: t.sectionRuleAbove ? 9 : 0,
+      borderTopWidth: t.sectionRuleAbove ? 1 : 0,
       borderTopColor: "#000000",
     },
     sectionTitle: {
@@ -113,23 +173,37 @@ function makeStyles(t: Theme) {
       color: t.sectionColor,
       textTransform: "uppercase",
       letterSpacing: t.sectionLetterSpacing,
-      marginBottom: 6,
+      marginBottom: t.sectionUnderline ? 4 : 7,
+      paddingBottom: t.sectionUnderline ? 3 : 0,
+      borderBottomWidth: t.sectionUnderline ? 0.75 : 0,
+      borderBottomColor: HAIRLINE,
     },
-    profil: { fontSize: 10 },
-    expHead: {
+
+    profil: { fontSize: 10, color: "#2b3038" },
+
+    exp: { marginTop: 9 },
+    expHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
+    expRole: { fontSize: 10.5, fontWeight: "bold", color: INK, flex: 1, paddingRight: 10 },
+    expDates: { fontSize: 9, color: GREY },
+
+    bullet: { flexDirection: "row", marginTop: 2.5, paddingLeft: 2 },
+    bulletDot: { width: 11, fontSize: 10, color: t.fontFamily === "Times-Roman" ? "#000" : NAVY },
+    bulletText: { flex: 1, fontSize: 10, color: "#2b3038" },
+
+    // Compétences en ligne : chaque compétence est un élément atomique dans une
+    // rangée qui passe à la ligne (aucun mot ne peut être coupé au milieu).
+    compRow: { flexDirection: "row", flexWrap: "wrap" },
+    compItem: { fontSize: 10, color: "#2b3038", lineHeight: 1.5 },
+    compSep: { fontSize: 10, color: HAIRLINE, lineHeight: 1.5 },
+
+    formItem: {
       flexDirection: "row",
       justifyContent: "space-between",
-      marginTop: 8,
+      alignItems: "flex-end",
+      marginTop: 5,
     },
-    expRole: { fontSize: 10.5, fontWeight: "bold", flex: 1, paddingRight: 8 },
-    expDates: { fontSize: 9, color: "#555555" },
-    bullet: { flexDirection: "row", marginTop: 2, paddingLeft: 4 },
-    bulletDot: { width: 10, fontSize: 10 },
-    bulletText: { flex: 1, fontSize: 10 },
-    compLine: { fontSize: 10, marginTop: 2 },
-    formItem: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
-    formLeft: { fontSize: 10, flex: 1, paddingRight: 8 },
-    formDates: { fontSize: 9, color: "#555555" },
+    formLeft: { fontSize: 10, color: INK, flex: 1, paddingRight: 10 },
+    formDates: { fontSize: 9, color: GREY },
   });
 }
 
@@ -157,9 +231,7 @@ function prepare(cv: CvContent) {
 
   const formation = cv.formation
     .map((f) => ({
-      entete: [f.intitule.trim(), f.etablissement.trim()]
-        .filter(Boolean)
-        .join(" — "),
+      entete: [f.intitule.trim(), f.etablissement.trim()].filter(Boolean).join(" — "),
       dates: f.dates.trim(),
     }))
     .filter((f) => f.entete || f.dates);
@@ -180,9 +252,6 @@ function CvDocument({ cv, style }: { cv: CvContent; style: PdfStyle }) {
   const t = THEMES[style];
   const s = makeStyles(t);
   const d = prepare(cv);
-  // Pour « minimal », on sépare les compétences par des points médians ;
-  // pour les autres, une compétence par ligne à puce.
-  const compAsChips = style === "minimal";
 
   return (
     <Document>
@@ -194,7 +263,7 @@ function CvDocument({ cv, style }: { cv: CvContent; style: PdfStyle }) {
         </View>
 
         {d.profil ? (
-          <View style={s.section}>
+          <View style={s.section} wrap={false}>
             <Text style={s.sectionTitle}>Profil</Text>
             <Text style={s.profil}>{d.profil}</Text>
           </View>
@@ -202,9 +271,11 @@ function CvDocument({ cv, style }: { cv: CvContent; style: PdfStyle }) {
 
         {d.experiences.length ? (
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Expérience professionnelle</Text>
+            <Text style={s.sectionTitle} minPresenceAhead={60}>
+              Expérience professionnelle
+            </Text>
             {d.experiences.map((e, i) => (
-              <View key={i} wrap={false}>
+              <View key={i} style={s.exp} wrap={false}>
                 <View style={s.expHead}>
                   <Text style={s.expRole}>{e.entete}</Text>
                   {e.dates ? <Text style={s.expDates}>{e.dates}</Text> : null}
@@ -221,10 +292,19 @@ function CvDocument({ cv, style }: { cv: CvContent; style: PdfStyle }) {
         ) : null}
 
         {d.competences.length ? (
-          <View style={s.section}>
+          <View style={s.section} wrap={false}>
             <Text style={s.sectionTitle}>Compétences</Text>
-            {compAsChips ? (
-              <Text style={s.compLine}>{d.competences.join("   ·   ")}</Text>
+            {t.competencesInline ? (
+              <View style={s.compRow}>
+                {d.competences.map((c, i) => (
+                  <Text key={i} style={s.compItem}>
+                    {c}
+                    {i < d.competences.length - 1 ? (
+                      <Text style={s.compSep}>{"    ·    "}</Text>
+                    ) : null}
+                  </Text>
+                ))}
+              </View>
             ) : (
               d.competences.map((c, i) => (
                 <View key={i} style={s.bullet}>
@@ -237,7 +317,7 @@ function CvDocument({ cv, style }: { cv: CvContent; style: PdfStyle }) {
         ) : null}
 
         {d.formation.length ? (
-          <View style={s.section}>
+          <View style={s.section} wrap={false}>
             <Text style={s.sectionTitle}>Formation</Text>
             {d.formation.map((f, i) => (
               <View key={i} style={s.formItem}>
