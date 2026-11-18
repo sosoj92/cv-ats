@@ -9,7 +9,7 @@
  *
  * Trois choses à connaître :
  *
- *   1. MODEL          → quel modèle Claude on appelle.
+ *   1. MODEL          → quel modèle Gemini on appelle.
  *   2. SYSTEM_PROMPT  → les instructions permanentes (le « rôle » de Claude).
  *   3. buildUserPrompt(cv, annonce) → le message concret, construit à chaque
  *      requête avec le CV et l'annonce de l'utilisateur.
